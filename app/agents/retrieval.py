@@ -1,28 +1,26 @@
+from app.utils.news_api import search_news
+
+
 def retrieval_agent(state):
     query = state["user_query"]
 
-    # temporary knowledge source - should replace this with real web retrieval later.
-    knowledge = {
-        "hillsborough": (
-            "The Hillsborough Independent Panel found that the "
-            "disaster was caused by a range of failures, including "
-            "the failure of crowd safety management. The panel "
-            "found no evidence that Liverpool supporters caused "
-            "the disaster."
-        )
-    }
+    print("\n[RETRIEVAL] Searching news for:")
+    print(query)
+
+    articles = search_news(query)
 
     information = []
 
-    for keyword, evidence in knowledge.items():
-        if keyword in query.lower():
-            information.append(evidence)
+    for article in articles:
+        title = article.get("title", "")
+        description = article.get("description", "")
 
-    if not information:
         information.append(
-            "No relevant information was found in the current source."
+            f"Title: {title}\nDescription: {description}"
         )
 
     state["retrieved_information"] = information
+
+    print(f"[RETRIEVAL] Retrieved {len(information)} articles.")
 
     return state
