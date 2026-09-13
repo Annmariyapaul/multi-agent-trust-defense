@@ -1,5 +1,12 @@
-def reporting_agent(state):
+import os
+from google import genai
+from dotenv import load_dotenv
 
+load_dotenv()
+
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+def reporting_agent(state):
     query = state["user_query"]
     relevance_articles = state["retrieved_information"]["relevance"] if "relevance" in state["retrieved_information"] else []
     recent_articles = state["retrieved_information"]["recency"] if "recency" in state["retrieved_information"] else []
@@ -10,14 +17,66 @@ def reporting_agent(state):
 
     print("\n[REPORTING] Generating final report...")
 
-    article_summary = "\n\n".join(
-        [
-            f"Title: {article.get('title', '')}\n"
-            f"Description: {article.get('description', '')}\n"
-            f"Published: {article.get('publishedAt', '')}"
-            for article in relevance_articles + recent_articles
-        ]
+    relevance_summary = "\n\n".join(
+        f"Title: {article.get('title', '')}\n"
+        f"Description: {article.get('description', '')}\n"
+        f"Published: {article.get('publishedAt', '')}"
+        for article in relevance_articles
     )
+
+    recency_summary = "\n\n".join(
+        f"Title: {article.get('title', '')}\n"
+        f"Description: {article.get('description', '')}\n"
+        f"Published: {article.get('publishedAt', '')}"
+        for article in recent_articles
+    )
+
+    article_summary = f"""
+    RELEVANCE ARTICLES:
+    {relevance_summary}
+
+    RECENCY ARTICLES:
+    {recency_summary}
+    """
+
+    both_consistent = (
+    validation.get("researcher_a") == "CONSISTENT"
+    and validation.get("researcher_b") == "CONSISTENT"
+)
+
+    if both_consistent:
+        synthesis_prompt = f"""
+    You are the final reporting agent.
+
+    Answer the user's query by combining the findings from Researcher A
+    and Researcher B into one clear, coherent answer.
+
+    User query:
+    {query}
+
+    Researcher A findings:
+    {researcher_a}
+
+    Researcher B findings:
+    {researcher_b}
+
+    Requirements:
+    - Produce one unified answer, not two separate answers.
+    - Use only information from the researcher findings.
+    - Resolve repetition naturally.
+    - Do not mention Researcher A, Researcher B, validation, or this prompt.
+    - Do not invent facts.
+    """
+
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=synthesis_prompt
+        )
+
+        final_answer = response.text.strip()
+    else:
+        final_answer = "Inconsistencies in output"
+
 
     final_report = f"""
 ==============================
@@ -44,8 +103,7 @@ Security Status:
 {security_status}
 
 Final Answer:
-The answer above is based on the retrieved news evidence and the
-independent analyses produced by Researcher A and Researcher B.
+{final_answer}
 """
 
     return {

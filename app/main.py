@@ -9,8 +9,14 @@ def main():
 
     initial_state = {
         "user_query": query,
-        "retrieved_information": [],
-        "validation_result": "",
+        "retrieved_information": {
+            "relevance": [],
+            "recency": []
+        },
+        "researcher_a_output": "",
+        "researcher_b_output": "",
+        "validation_result": {},
+        "security_status": {},
         "final_report": "",
     }
 
