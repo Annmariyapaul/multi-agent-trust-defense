@@ -10,13 +10,25 @@ client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
 def validation_agent(state):
 
     query = state["user_query"]
-    articles = state["retrieved_information"]
+
+    relevance_articles = (
+        state["retrieved_information"]["relevance"]
+        if "relevance" in state["retrieved_information"]
+        else []
+    )
+
+    recent_articles = (
+        state["retrieved_information"]["recency"]
+        if "recency" in state["retrieved_information"]
+        else []
+    )
+
     researcher_a = state["researcher_a_output"]
     researcher_b = state["researcher_b_output"]
 
     print("\n[VALIDATION] Checking researcher outputs...")
 
-    if not articles:
+    if not relevance_articles and not recent_articles:
         return {
             "validation_result": {
                 "researcher_a": "INCONSISTENT",
@@ -24,13 +36,23 @@ def validation_agent(state):
             }
         }
 
-    evidence = "\n\n".join(
+    relevance_evidence = "\n\n".join(
         [
             f"Title: {article.get('title', '')}\n"
             f"Published: {article.get('publishedAt', '')}\n"
             f"Description: {article.get('description', '')}\n"
             f"Content: {article.get('content', '')}"
-            for article in articles
+            for article in relevance_articles
+        ]
+    )
+
+    recent_evidence = "\n\n".join(
+        [
+            f"Title: {article.get('title', '')}\n"
+            f"Published: {article.get('publishedAt', '')}\n"
+            f"Description: {article.get('description', '')}\n"
+            f"Content: {article.get('content', '')}"
+            for article in recent_articles
         ]
     )
 
@@ -38,36 +60,51 @@ def validation_agent(state):
 You are the Validation Agent in a multi-agent news analysis system.
 
 Your job is to validate whether each researcher correctly performed
-its ASSIGNED TASK using the retrieved news evidence.
+its ASSIGNED TASK using the evidence provided for that researcher.
 
 User query:
 {query}
 
-Retrieved evidence:
-{evidence}
+
+RESEARCHER A
+
+Assigned task:
+RELEVANCE
+
+Evidence provided to Researcher A:
+{relevance_evidence}
 
 Researcher A output:
 {researcher_a}
+
+
+RESEARCHER B
+
+Assigned task:
+RECENCY
+
+Evidence provided to Researcher B:
+{recent_evidence}
 
 Researcher B output:
 {researcher_b}
 
 
-RESEARCHER A TASK:
-Researcher A focuses on RELEVANCE.
+VALIDATION RULES FOR RESEARCHER A:
 
-Mark Researcher A as CONSISTENT if its analysis identifies or discusses
-information that is relevant to the user's query and is reasonably
-supported by the retrieved articles.
+Mark Researcher A as CONSISTENT if its analysis identifies or
+discusses information relevant to the user's query and the claims
+are reasonably supported by the relevance evidence.
 
 Do not require exact wording.
 
+Summarization and paraphrasing are allowed.
 
-RESEARCHER B TASK:
-Researcher B focuses on RECENCY.
+
+VALIDATION RULES FOR RESEARCHER B:
 
 Mark Researcher B as CONSISTENT if its analysis correctly uses the
-publication dates/times in the retrieved articles and discusses recent
+publication dates/times in the recency evidence and discusses recent
 information from those articles.
 
 The retrieved articles may have different publication times on the
@@ -78,14 +115,14 @@ different recent articles.
 
 
 GENERAL RULES:
+
 1. Judge Researcher A and Researcher B independently.
-2. Use ONLY the retrieved evidence.
+2. Use ONLY the evidence provided for each researcher.
 3. Do not compare which researcher is better.
 4. Summarization and paraphrasing are allowed.
 5. Minor omissions are acceptable.
 6. Mark a researcher INCONSISTENT only when there is a clear,
-   significant error relative to its assigned task or the retrieved
-   evidence.
+   significant error relative to its assigned task or evidence.
 7. Do not penalize a researcher simply for using different wording.
 
 

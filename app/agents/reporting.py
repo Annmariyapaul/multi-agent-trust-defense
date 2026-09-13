@@ -1,7 +1,8 @@
 def reporting_agent(state):
 
     query = state["user_query"]
-    articles = state["retrieved_information"]
+    relevance_articles = state["retrieved_information"]["relevance"] if "relevance" in state["retrieved_information"] else []
+    recent_articles = state["retrieved_information"]["recency"] if "recency" in state["retrieved_information"] else []
     researcher_a = state["researcher_a_output"]
     researcher_b = state["researcher_b_output"]
     validation = state["validation_result"]
@@ -14,7 +15,7 @@ def reporting_agent(state):
             f"Title: {article.get('title', '')}\n"
             f"Description: {article.get('description', '')}\n"
             f"Published: {article.get('publishedAt', '')}"
-            for article in articles
+            for article in relevance_articles + recent_articles
         ]
     )
 

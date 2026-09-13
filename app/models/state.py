@@ -5,7 +5,7 @@ class AgentState(TypedDict):
 
     user_query: str
 
-    retrieved_information: List[Dict]
+    retrieved_information: Dict[str, List[Dict]]
 
     researcher_a_output: str
 

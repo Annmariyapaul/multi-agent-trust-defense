@@ -10,7 +10,7 @@ client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
 def researcher_b_agent(state):
 
     query = state["user_query"]
-    articles = state["retrieved_information"]
+    articles = state["retrieved_information"]["recency"] if "recency" in state["retrieved_information"] else []
 
     print("\n[RESEARCHER B] Analyzing recency...")
 
