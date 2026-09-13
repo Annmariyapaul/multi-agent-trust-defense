@@ -1,12 +1,144 @@
+import os
+from google import genai
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
+
+
 def validation_agent(state):
-    information = state["retrieved_information"]
 
-    if not information:
-        state["validation_result"] = "INVALID: No evidence found."
-        return state
+    query = state["user_query"]
+    articles = state["retrieved_information"]
+    researcher_a = state["researcher_a_output"]
+    researcher_b = state["researcher_b_output"]
 
-    state["validation_result"] = (
-        "VALID: Relevant supporting information was retrieved."
+    print("\n[VALIDATION] Checking researcher outputs...")
+
+    if not articles:
+        return {
+            "validation_result": {
+                "researcher_a": "INCONSISTENT",
+                "researcher_b": "INCONSISTENT"
+            }
+        }
+
+    evidence = "\n\n".join(
+        [
+            f"Title: {article.get('title', '')}\n"
+            f"Published: {article.get('publishedAt', '')}\n"
+            f"Description: {article.get('description', '')}\n"
+            f"Content: {article.get('content', '')}"
+            for article in articles
+        ]
     )
 
-    return state
+    prompt = f"""
+You are the Validation Agent in a multi-agent news analysis system.
+
+Your job is to validate whether each researcher correctly performed
+its ASSIGNED TASK using the retrieved news evidence.
+
+User query:
+{query}
+
+Retrieved evidence:
+{evidence}
+
+Researcher A output:
+{researcher_a}
+
+Researcher B output:
+{researcher_b}
+
+
+RESEARCHER A TASK:
+Researcher A focuses on RELEVANCE.
+
+Mark Researcher A as CONSISTENT if its analysis identifies or discusses
+information that is relevant to the user's query and is reasonably
+supported by the retrieved articles.
+
+Do not require exact wording.
+
+
+RESEARCHER B TASK:
+Researcher B focuses on RECENCY.
+
+Mark Researcher B as CONSISTENT if its analysis correctly uses the
+publication dates/times in the retrieved articles and discusses recent
+information from those articles.
+
+The retrieved articles may have different publication times on the
+same date. This is valid.
+
+Do not mark Researcher B inconsistent merely because it focuses on
+different recent articles.
+
+
+GENERAL RULES:
+1. Judge Researcher A and Researcher B independently.
+2. Use ONLY the retrieved evidence.
+3. Do not compare which researcher is better.
+4. Summarization and paraphrasing are allowed.
+5. Minor omissions are acceptable.
+6. Mark a researcher INCONSISTENT only when there is a clear,
+   significant error relative to its assigned task or the retrieved
+   evidence.
+7. Do not penalize a researcher simply for using different wording.
+
+
+Return ONLY these two lines:
+
+Researcher A: CONSISTENT
+Researcher B: CONSISTENT
+
+or
+
+Researcher A: INCONSISTENT
+Researcher B: CONSISTENT
+
+or
+
+Researcher A: CONSISTENT
+Researcher B: INCONSISTENT
+
+or
+
+Researcher A: INCONSISTENT
+Researcher B: INCONSISTENT
+"""
+
+    response = client.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt
+    )
+
+    text = response.text.strip().upper()
+
+    researcher_a_result = "INCONSISTENT"
+    researcher_b_result = "INCONSISTENT"
+
+    if "RESEARCHER A: CONSISTENT" in text:
+        researcher_a_result = "CONSISTENT"
+
+    if "RESEARCHER B: CONSISTENT" in text:
+        researcher_b_result = "CONSISTENT"
+
+    print(
+        f"[VALIDATION] Researcher A: {researcher_a_result}"
+    )
+
+    print(
+        f"[VALIDATION] Researcher B: {researcher_b_result}"
+    )
+
+    print("[VALIDATION] Completed.")
+
+    return {
+        "validation_result": {
+            "researcher_a": researcher_a_result,
+            "researcher_b": researcher_b_result
+        }
+    }
