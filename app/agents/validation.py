@@ -148,7 +148,7 @@ Researcher B: INCONSISTENT
 """
 
     response = client.models.generate_content(
-        model="gemini-3.6-flash",
+        model=os.getenv("GEMINI_MODEL"),
         contents=prompt
     )
 
