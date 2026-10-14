@@ -9,6 +9,27 @@ from app.agents.validation import validation_agent
 from app.agents.security_monitor import security_monitor_agent
 from app.agents.reporting import reporting_agent
 
+MAX_ATTEMPTS = 2
+
+
+def route_after_security(state):
+    """G-Safeguard remediation: prune, re-run, or proceed."""
+    status = state["security_status"]
+    attempts = state.get("attempt_count", {})
+
+    for agent in ["researcher_a", "researcher_b"]:
+        info = status.get(agent, {})
+        tries = attempts.get(agent, 0)
+
+        if info.get("status") == "QUARANTINE" and tries < MAX_ATTEMPTS:
+            print(f"[REMEDIATION] Replacing {agent} and re-running")
+            return agent
+
+        if info.get("status") == "SUSPICIOUS" and tries < MAX_ATTEMPTS:
+            print(f"[REMEDIATION] Re-running {agent}")
+            return agent
+
+    return "reporting"
 
 def build_graph():
 
@@ -29,7 +50,15 @@ def build_graph():
     graph.add_edge("researcher_a", "validation")
     graph.add_edge("researcher_b", "validation")
     graph.add_edge("validation", "security_monitor")
-    graph.add_edge("security_monitor", "reporting")
+    graph.add_conditional_edges(
+    "security_monitor",
+    route_after_security,
+    {
+        "researcher_a": "researcher_a",
+        "researcher_b": "researcher_b",
+        "reporting": "reporting",
+    },
+)
     graph.add_edge("reporting", END)
 
     return graph.compile()

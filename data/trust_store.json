@@ -1,0 +1,24 @@
+{
+  "researcher_a": [
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    }
+  ],
+  "researcher_b": [
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    }
+  ]
+}
