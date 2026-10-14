@@ -1,75 +1,102 @@
-import os
-from google import genai
-from dotenv import load_dotenv
+from app.utils.llm import generate
 
-load_dotenv()
+ELEMENTS = ["role_consistency", "grounding", "task_adherence", "evidence_use"]
 
-client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
+
+def parse_elements(text, agent_label):
+    """Extract PASS/FAIL per element for one agent from the LLM response."""
+    positive, negative = [], []
+
+    if agent_label in text:
+        section = text.split(agent_label, 1)[1]
+    else:
+        section = text
+
+    # Stop at the next agent header so A's block doesn't bleed into B's.
+    for other in ("RESEARCHER_A", "RESEARCHER_B"):
+        if other != agent_label and other in section:
+            section = section.split(other, 1)[0]
+
+    for element in ELEMENTS:
+        verdict = None
+        for line in section.splitlines():
+            if line.strip().lower().startswith(element):
+                verdict = "FAIL" if "FAIL" in line.upper() else "PASS"
+                break
+
+        # Default to FAIL if the model omitted a line - fail closed.
+        if verdict == "PASS":
+            positive.append(element)
+        else:
+            negative.append(element)
+
+    return {"positive": positive, "negative": negative}
 
 
 def validation_agent(state):
 
     query = state["user_query"]
+    retrieved = state.get("retrieved_information", {})
+    relevance_articles = retrieved.get("relevance", [])
+    recent_articles = retrieved.get("recency", [])
 
-    relevance_articles = (
-        state["retrieved_information"]["relevance"]
-        if "relevance" in state["retrieved_information"]
-        else []
-    )
-
-    recent_articles = (
-        state["retrieved_information"]["recency"]
-        if "recency" in state["retrieved_information"]
-        else []
-    )
-
-    researcher_a = state["researcher_a_output"]
-    researcher_b = state["researcher_b_output"]
+    researcher_a = state.get("researcher_a_output", "")
+    researcher_b = state.get("researcher_b_output", "")
 
     print("\n[VALIDATION] Checking researcher outputs...")
 
+    # An empty result means "not validated". The security monitor then
+    # withholds the outputs but leaves trust unchanged - a missing check
+    # is not evidence that an agent misbehaved.
     if not relevance_articles and not recent_articles:
-        return {
-            "validation_result": {
-                "researcher_a": "INCONSISTENT",
-                "researcher_b": "INCONSISTENT"
-            }
-        }
+        print("[VALIDATION] No evidence available - cannot validate.")
+        return {"validation_result": {}}
 
     relevance_evidence = "\n\n".join(
-        [
-            f"Title: {article.get('title', '')}\n"
-            f"Published: {article.get('publishedAt', '')}\n"
-            f"Description: {article.get('description', '')}\n"
-            f"Content: {article.get('content', '')}"
-            for article in relevance_articles
-        ]
+        f"Title: {article.get('title', '')}\n"
+        f"Published: {article.get('publishedAt', '')}\n"
+        f"Description: {article.get('description', '')}\n"
+        f"Content: {article.get('content', '')}"
+        for article in relevance_articles
     )
 
     recent_evidence = "\n\n".join(
-        [
-            f"Title: {article.get('title', '')}\n"
-            f"Published: {article.get('publishedAt', '')}\n"
-            f"Description: {article.get('description', '')}\n"
-            f"Content: {article.get('content', '')}"
-            for article in recent_articles
-        ]
+        f"Title: {article.get('title', '')}\n"
+        f"Published: {article.get('publishedAt', '')}\n"
+        f"Description: {article.get('description', '')}\n"
+        f"Content: {article.get('content', '')}"
+        for article in recent_articles
     )
 
     prompt = f"""
 You are the Validation Agent in a multi-agent news analysis system.
 
-Your job is to validate whether each researcher correctly performed
-its ASSIGNED TASK using the evidence provided for that researcher.
+Judge each researcher against FOUR elements, independently.
+
+ELEMENT DEFINITIONS:
+
+role_consistency: does the output read like the agent's assigned role
+                  (A = relevance analyst, B = recency analyst), or has
+                  it drifted into some other behaviour?
+grounding:        is every claim supported by the evidence given to that
+                  researcher? Any invented fact is a FAIL.
+task_adherence:   did it actually perform its assigned task? A analysing
+                  dates instead of relevance is a FAIL.
+evidence_use:     did it use the articles it was given, rather than
+                  outside knowledge or a different article set?
+
+GENERAL RULES:
+- Judge A and B independently. Do not compare them.
+- Summarization and paraphrasing are allowed.
+- Minor omissions are acceptable.
+- Mark FAIL only on a clear, significant error.
+- Do not penalise different wording.
+- Articles published on the same date with different times are valid.
 
 User query:
 {query}
 
-
-RESEARCHER A
-
-Assigned task:
-RELEVANCE
+--- RESEARCHER A (assigned task: RELEVANCE) ---
 
 Evidence provided to Researcher A:
 {relevance_evidence}
@@ -77,11 +104,7 @@ Evidence provided to Researcher A:
 Researcher A output:
 {researcher_a}
 
-
-RESEARCHER B
-
-Assigned task:
-RECENCY
+--- RESEARCHER B (assigned task: RECENCY) ---
 
 Evidence provided to Researcher B:
 {recent_evidence}
@@ -89,93 +112,45 @@ Evidence provided to Researcher B:
 Researcher B output:
 {researcher_b}
 
+Return ONLY these lines, exactly, with no other text:
 
-VALIDATION RULES FOR RESEARCHER A:
+RESEARCHER_A
+role_consistency: PASS
+grounding: PASS
+task_adherence: PASS
+evidence_use: PASS
 
-Mark Researcher A as CONSISTENT if its analysis identifies or
-discusses information relevant to the user's query and the claims
-are reasonably supported by the relevance evidence.
+RESEARCHER_B
+role_consistency: PASS
+grounding: PASS
+task_adherence: PASS
+evidence_use: PASS
 
-Do not require exact wording.
-
-Summarization and paraphrasing are allowed.
-
-
-VALIDATION RULES FOR RESEARCHER B:
-
-Mark Researcher B as CONSISTENT if its analysis correctly uses the
-publication dates/times in the recency evidence and discusses recent
-information from those articles.
-
-The retrieved articles may have different publication times on the
-same date. This is valid.
-
-Do not mark Researcher B inconsistent merely because it focuses on
-different recent articles.
-
-
-GENERAL RULES:
-
-1. Judge Researcher A and Researcher B independently.
-2. Use ONLY the evidence provided for each researcher.
-3. Do not compare which researcher is better.
-4. Summarization and paraphrasing are allowed.
-5. Minor omissions are acceptable.
-6. Mark a researcher INCONSISTENT only when there is a clear,
-   significant error relative to its assigned task or evidence.
-7. Do not penalize a researcher simply for using different wording.
-
-
-Return ONLY these two lines:
-
-Researcher A: CONSISTENT
-Researcher B: CONSISTENT
-
-or
-
-Researcher A: INCONSISTENT
-Researcher B: CONSISTENT
-
-or
-
-Researcher A: CONSISTENT
-Researcher B: INCONSISTENT
-
-or
-
-Researcher A: INCONSISTENT
-Researcher B: INCONSISTENT
+Replace each PASS with FAIL where appropriate.
 """
 
-    response = client.models.generate_content(
-        model=os.getenv("GEMINI_MODEL"),
-        contents=prompt
-    )
+    text, ok = generate(prompt, "validation")
 
-    text = response.text.strip().upper()
+    if not ok:
+        # The checker itself is down, so nothing has been checked.
+        # Fail closed: no verdicts means nothing reaches the final answer,
+        # and no researcher is penalised for the validator's outage.
+        print("[VALIDATION] Validator unavailable - no outputs verified.")
+        return {"validation_result": {}}
 
-    researcher_a_result = "INCONSISTENT"
-    researcher_b_result = "INCONSISTENT"
+    text = text.strip()
 
-    if "RESEARCHER A: CONSISTENT" in text:
-        researcher_a_result = "CONSISTENT"
+    result_a = parse_elements(text, "RESEARCHER_A")
+    result_b = parse_elements(text, "RESEARCHER_B")
 
-    if "RESEARCHER B: CONSISTENT" in text:
-        researcher_b_result = "CONSISTENT"
-
-    print(
-        f"[VALIDATION] Researcher A: {researcher_a_result}"
-    )
-
-    print(
-        f"[VALIDATION] Researcher B: {researcher_b_result}"
-    )
-
-    print("[VALIDATION] Completed.")
+    print(f"[VALIDATION] Researcher A failed: "
+          f"{result_a['negative'] or 'nothing'}")
+    print(f"[VALIDATION] Researcher B failed: "
+          f"{result_b['negative'] or 'nothing'}")
 
     return {
         "validation_result": {
-            "researcher_a": researcher_a_result,
-            "researcher_b": researcher_b_result
+            "researcher_a": result_a,
+            "researcher_b": result_b,
         }
     }

@@ -7,17 +7,18 @@ def retrieval_agent(state):
 
     print("\n[RETRIEVAL] Fetching news...")
 
-    articles = fetch_news(query)
+    try:
+        articles = fetch_news(query)
+    except Exception as e:
+        # GNews down, daily quota used up, or no network. Carry on with no
+        # articles: the researchers mark themselves unavailable and the
+        # report says no verified answer could be produced.
+        print(f"[RETRIEVAL] News fetch failed: {e}")
+        articles = []
 
     if not articles:
         print("[RETRIEVAL] No articles found.")
-
-        state["retrieved_information"] = {
-            "relevance": [],
-            "recency": []
-        }
-
-        return state
+        return {"retrieved_information": {"relevance": [], "recency": []}}
 
     # Researcher A receives the retrieved articles
     relevance_articles = articles.copy()
@@ -30,13 +31,12 @@ def retrieval_agent(state):
         reverse=True
     )
 
-    state["retrieved_information"] = {
-        "relevance": relevance_articles,
-        "recency": recency_articles
+    print(f"[RETRIEVAL] Retrieved {len(articles)} unique articles.")
+
+    # Return only the key this node changes, instead of the whole state.
+    return {
+        "retrieved_information": {
+            "relevance": relevance_articles,
+            "recency": recency_articles,
+        }
     }
-
-    print(
-        f"[RETRIEVAL] Retrieved {len(articles)} unique articles."
-    )
-
-    return state

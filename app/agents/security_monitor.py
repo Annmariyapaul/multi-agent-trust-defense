@@ -1,52 +1,81 @@
+from app.utils.trust_score import append_round, load_history
+from app.security.trust import reputation
+
+TRUSTED_FLOOR = 0.70
+QUARANTINE_FLOOR = 0.45
+
+AGENTS = ["researcher_a", "researcher_b"]
+
+
 def security_monitor_agent(state):
 
-    validation = state["validation_result"]
+    validation = state.get("validation_result", {})
+    available = state.get("agent_available", {})
+
+    # Outputs withheld from the final answer. This includes agents that
+    # were unavailable or unverified, not only quarantined ones - so for
+    # detection metrics, use security_status[agent]["status"] == "QUARANTINE"
+    # rather than this list.
+    quarantined = []
+    security_status = {}
 
     print("\n[SECURITY MONITOR] Evaluating researcher trust...")
 
-    # Convert validation result into a consistency score
-    if validation.get("researcher_a") == "CONSISTENT":
-        researcher_a_score = 1.0
-    else:
-        researcher_a_score = 0.0
+    for agent in AGENTS:
 
-    if validation.get("researcher_b") == "CONSISTENT":
-        researcher_b_score = 1.0
-    else:
-        researcher_b_score = 0.0
+        # Two cases with no evidence about the agent's honesty:
+        #   UNAVAILABLE - it produced nothing (API down / no articles)
+        #   UNVERIFIED  - the validator could not judge it
+        # Either way: withhold the output, leave trust unchanged. The router
+        # only re-runs QUARANTINE / SUSPICIOUS, so these are not replaced.
+        if available.get(agent) is False:
+            skip_status = "UNAVAILABLE"
+        elif agent not in validation:
+            skip_status = "UNVERIFIED"
+        else:
+            skip_status = None
 
-    # Convert trust score into a security status
-    if researcher_a_score >= 0.70:
-        researcher_a_status = "TRUSTED"
-    else:
-        researcher_a_status = "SUSPICIOUS"
+        if skip_status:
+            rounds = load_history().get(agent, [])
+            score = reputation(rounds)
+            quarantined.append(agent)
+            security_status[agent] = {
+                "trust_score": score,
+                "status": skip_status,
+                "failed_elements": [],
+                "history_length": len(rounds),
+            }
+            print(f"[SECURITY MONITOR] {agent}: {skip_status} - output "
+                  f"withheld, trust unchanged at {score:.3f}")
+            continue
 
-    if researcher_b_score >= 0.70:
-        researcher_b_status = "TRUSTED"
-    else:
-        researcher_b_status = "SUSPICIOUS"
+        result = validation[agent]
+        positive = result.get("positive", [])
+        negative = result.get("negative", [])
 
-    security_status = {
-        "researcher_a": {
-            "trust_score": researcher_a_score,
-            "status": researcher_a_status
-        },
-        "researcher_b": {
-            "trust_score": researcher_b_score,
-            "status": researcher_b_status
+        # Persist this round, then recompute the decayed reputation.
+        rounds = append_round(agent, positive, negative)
+        score = reputation(rounds)
+
+        if score >= TRUSTED_FLOOR:
+            status = "TRUSTED"
+        elif score >= QUARANTINE_FLOOR:
+            status = "SUSPICIOUS"
+        else:
+            status = "QUARANTINE"
+            quarantined.append(agent)
+
+        security_status[agent] = {
+            "trust_score": score,
+            "status": status,
+            "failed_elements": negative,
+            "history_length": len(rounds),
         }
-    }
 
-    print(
-        f"[SECURITY MONITOR] Researcher A: "
-        f"{researcher_a_score:.2f} → {researcher_a_status}"
-    )
-
-    print(
-        f"[SECURITY MONITOR] Researcher B: "
-        f"{researcher_b_score:.2f} → {researcher_b_status}"
-    )
+        print(f"[SECURITY MONITOR] {agent}: {score:.3f} -> {status} "
+              f"(failed: {negative or 'none'})")
 
     return {
-        "security_status": security_status
+        "security_status": security_status,
+        "quarantined": quarantined,
     }
