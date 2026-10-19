@@ -1,56 +1,79 @@
 import os
-from google import genai
 from dotenv import load_dotenv
+
+from app.agents.prompts import PROMPT_PAIRS, draw_prompt
+from app.utils.llm import generate
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GOOGLE_AI_API_KEY"))
+AGENT_NAME = "researcher_a"
 
 
 def researcher_a_agent(state):
 
     query = state["user_query"]
-    articles = state["retrieved_information"]["relevance"] if "relevance" in state["retrieved_information"] else []
+    articles = state.get("retrieved_information", {}).get("relevance", [])
 
-    print("\n[RESEARCHER A] Analyzing relevance...")
+    attempts = dict(state.get("attempt_count", {}))
+    previous = attempts.get(AGENT_NAME, 0)
+    attempts[AGENT_NAME] = previous + 1
 
+    prompts = dict(state.get("agent_prompts", {}))
+    ground_truth = dict(state.get("ground_truth", {}))
+
+    # A re-run means this agent was flagged. Replace it with a fresh
+    # instance rather than repeating the same failure.
+    if previous > 0:
+        prompt_template, is_malicious, label = draw_prompt(AGENT_NAME)
+        prompts[AGENT_NAME] = prompt_template
+        ground_truth[AGENT_NAME] = is_malicious
+        print(f"[RESEARCHER A] Replaced with a fresh agent ({label})")
+    else:
+        prompt_template = prompts.get(
+            AGENT_NAME, PROMPT_PAIRS[AGENT_NAME]["healthy"]
+        )
+
+    print(f"\n[RESEARCHER A] Analyzing relevance... "
+          f"(attempt {attempts[AGENT_NAME]})")
+
+    base = {
+        "attempt_count": attempts,
+        "agent_prompts": prompts,
+        "ground_truth": ground_truth,
+    }
+
+    # No evidence to work with — not the agent's fault, so mark it
+    # unavailable rather than letting it be judged on an empty input.
     if not articles:
+        print("[RESEARCHER A] No evidence available — skipping analysis.")
         return {
-            "researcher_a_output": "No evidence available."
+            "researcher_a_output": "No evidence available.",
+            "agent_available": {AGENT_NAME: False},
+            **base,
         }
 
     evidence = "\n\n".join(
-        [
-            f"Title: {article.get('title', '')}\n"
-            f"Description: {article.get('description', '')}\n"
-            f"Content: {article.get('content', '')}"
-            for article in articles
-        ]
+        f"Title: {article.get('title', '')}\n"
+        f"Description: {article.get('description', '')}\n"
+        f"Content: {article.get('content', '')}"
+        for article in articles
     )
 
-    prompt = f"""
-You are Researcher A in a multi-agent news analysis system.
+    prompt = prompt_template.format(query=query, evidence=evidence)
 
-Your task is to analyze the retrieved news articles based primarily
-on RELEVANCE to the user's query.
+    text, ok = generate(prompt, AGENT_NAME)
 
-User query:
-{query}
-
-Retrieved articles:
-{evidence}
-
-Determine which articles are most relevant to the query and explain
-the answer using only the retrieved evidence.
-
-Do not invent facts that are not present in the evidence.
-"""
-
-    response = client.models.generate_content(
-        model=os.getenv("GEMINI_MODEL"),
-        contents=prompt
-    )
+    if not ok:
+        # Transient API failure, not misbehaviour. The workflow continues
+        # and the security module skips the trust update for this agent.
+        return {
+            "researcher_a_output": "No analysis produced — agent unavailable.",
+            "agent_available": {AGENT_NAME: False},
+            **base,
+        }
 
     return {
-    "researcher_a_output": response.text
-}
+        "researcher_a_output": text,
+        "agent_available": {AGENT_NAME: True},
+        **base,
+    }
