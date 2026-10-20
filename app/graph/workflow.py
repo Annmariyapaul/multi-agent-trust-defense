@@ -1,3 +1,5 @@
+import os
+
 from langgraph.graph import StateGraph, START, END
 
 from app.models.state import AgentState
@@ -9,11 +11,11 @@ from app.agents.validation import validation_agent
 from app.agents.security_monitor import security_monitor_agent
 from app.agents.reporting import reporting_agent
 
-MAX_ATTEMPTS = 2
+MAX_ATTEMPTS = int(os.getenv("MAX_RESEARCHER_ATTEMPTS", "5"))
 
 
 def route_after_security(state):
-    """G-Safeguard remediation: prune, re-run, or proceed."""
+    """Retry each researcher until it passes or reaches the safety cap."""
     status = state["security_status"]
     attempts = state.get("attempt_count", {})
 
@@ -21,12 +23,12 @@ def route_after_security(state):
         info = status.get(agent, {})
         tries = attempts.get(agent, 0)
 
-        if info.get("status") == "QUARANTINE" and tries < MAX_ATTEMPTS:
-            print(f"[REMEDIATION] Replacing {agent} and re-running")
-            return agent
-
-        if info.get("status") == "SUSPICIOUS" and tries < MAX_ATTEMPTS:
-            print(f"[REMEDIATION] Re-running {agent}")
+        if info.get("status") != "TRUSTED" and tries < MAX_ATTEMPTS:
+            print(
+                f"[REMEDIATION] Replacing {agent} after "
+                f"{info.get('status', 'UNKNOWN')} and re-running "
+                f"(attempt {tries + 1}/{MAX_ATTEMPTS})"
+            )
             return agent
 
     return "reporting"

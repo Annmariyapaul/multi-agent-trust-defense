@@ -44,4 +44,7 @@ def leader_agent(state):
         "ground_truth": ground_truth,
         "quarantined": [],
         "attempt_count": {},
+        "attempt_history": {},
+        "failure_count": {},
+        "replacement_count": {},
     }

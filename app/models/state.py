@@ -14,6 +14,9 @@ class AgentState(TypedDict):
     validation_result: Dict
     security_status: Dict
     final_report: str
+    attempt_history: Dict[str, List[Dict]]
+    failure_count: Dict[str, int]
+    replacement_count: Dict[str, int]
 
     # --- remediation / simulation ---
     quarantined: List[str]

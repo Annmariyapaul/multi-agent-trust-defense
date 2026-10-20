@@ -82,6 +82,8 @@ Notes:
 - `GEMINI_FALLBACK_MODEL` is used after a rate-limit response when configured
 - `SIMULATE_MALICIOUS_AGENTS` defaults to `false`. Set it to `true` only when
   testing the trust and replacement workflow.
+- `MAX_RESEARCHER_ATTEMPTS` controls the maximum attempts per researcher and
+  defaults to `5`, preventing an API outage from creating an infinite loop.
 
 ## Install dependencies
 

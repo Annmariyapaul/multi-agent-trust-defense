@@ -12,6 +12,9 @@ def reporting_agent(state):
     researcher_b = state.get("researcher_b_output", "")
     security_status = state.get("security_status", {})
     quarantined = state.get("quarantined", [])
+    attempt_history = state.get("attempt_history", {})
+    failure_count = state.get("failure_count", {})
+    replacement_count = state.get("replacement_count", {})
 
     print("\n[REPORTING] Generating final report...")
 
@@ -90,7 +93,23 @@ Requirements:
         failed = info.get("failed_elements", [])
         pruned = " [PRUNED]" if agent in quarantined else ""
         return (f"{agent}: {score} ({status}){pruned}"
-                f"  failed: {failed or 'none'}")
+                f"  current failed: {failed or 'none'}"
+                f"  total failed elements: {failure_count.get(agent, 0)}"
+                f"  replacements: {replacement_count.get(agent, 0)}")
+
+    def attempt_lines(agent):
+        entries = attempt_history.get(agent, [])
+        if not entries:
+            return f"{agent}: no security attempts recorded"
+
+        lines = []
+        for entry in entries:
+            lines.append(
+                f"{agent} attempt {entry['attempt']}: "
+                f"{entry['status']} "
+                f"failed={entry['failed_elements'] or 'none'}"
+            )
+        return "\n".join(lines)
 
     final_report = f"""
 ==============================
@@ -115,6 +134,10 @@ Researcher B - Recency Analysis:
 Security Status:
 {agent_line("researcher_a")}
 {agent_line("researcher_b")}
+
+Security Attempt History:
+{attempt_lines("researcher_a")}
+{attempt_lines("researcher_b")}
 
 Final Answer:
 {final_answer}
