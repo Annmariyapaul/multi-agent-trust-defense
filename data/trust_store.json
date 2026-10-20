@@ -8,9 +8,171 @@
         "evidence_use"
       ],
       "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
     }
   ],
   "researcher_b": [
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [],
+      "negative": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ]
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
+    {
+      "positive": [],
+      "negative": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ]
+    },
+    {
+      "positive": [],
+      "negative": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ]
+    },
+    {
+      "positive": [
+        "role_consistency",
+        "grounding",
+        "task_adherence",
+        "evidence_use"
+      ],
+      "negative": []
+    },
     {
       "positive": [
         "role_consistency",

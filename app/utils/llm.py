@@ -16,7 +16,7 @@ MAX_RETRIES = 4
 # gemini-2.0-flash was shut down in June 2026, so the old fallback could
 # never succeed. Overridable from .env so a future retirement is a config
 # change, not a code change.
-FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.1-flash-lite")
+FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL")
 
 # 429 = rate limit / quota. Temporary, so worth waiting for, unlike other 4xx.
 RETRYABLE_CLIENT_CODES = {429}
@@ -36,9 +36,10 @@ def generate(prompt, agent_name="agent"):
 
     for attempt in range(MAX_RETRIES):
         try:
-            response = client.models.generate_content(
-                model=model, contents=prompt
-            )
+            # Chat.send_message avoids the automatic-function-calling warning
+            # emitted by newer google-genai versions for generate_content.
+            chat = client.chats.create(model=model)
+            response = chat.send_message(prompt)
             text = response.text
             if not text:
                 # Safety-blocked, or no text parts in the response.
@@ -57,6 +58,13 @@ def generate(prompt, agent_name="agent"):
                 return f"[LLM_ERROR] {e.code}", False
             reason = f"rate limited ({e.code})"
 
+            # A 429 is commonly project quota exhaustion. Retrying the same
+            # model cannot repair that; try the configured fallback once.
+            if FALLBACK_MODEL and model != FALLBACK_MODEL:
+                print(f"[LLM] {agent_name}: falling back to {FALLBACK_MODEL}")
+                model = FALLBACK_MODEL
+                continue
+
         except httpx.TransportError as e:
             # Connection drops, timeouts. Not API errors, so they
             # previously escaped and would crash the graph.
@@ -70,11 +78,6 @@ def generate(prompt, agent_name="agent"):
         print(f"[LLM] {agent_name}: {reason}, "
               f"retry {attempt + 1}/{MAX_RETRIES - 1} in {wait:.1f}s")
         time.sleep(wait)
-
-        # last-ditch: drop to the lighter model for the final attempt
-        if attempt == MAX_RETRIES - 2 and model != FALLBACK_MODEL:
-            print(f"[LLM] {agent_name}: falling back to {FALLBACK_MODEL}")
-            model = FALLBACK_MODEL
 
     print(f"[LLM] {agent_name}: unavailable after {MAX_RETRIES} attempts")
     return "[LLM_UNAVAILABLE]", False

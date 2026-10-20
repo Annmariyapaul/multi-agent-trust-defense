@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-from app.agents.prompts import PROMPT_PAIRS, draw_prompt
+from app.agents.leader import spawn_agent
+from app.agents.prompts import PROMPT_PAIRS
 from app.utils.llm import generate
 
 load_dotenv()
@@ -24,15 +25,19 @@ def researcher_a_agent(state):
     # A re-run means this agent was flagged. Replace it with a fresh
     # instance rather than repeating the same failure.
     if previous > 0:
-        prompt_template, is_malicious, label = draw_prompt(AGENT_NAME)
-        prompts[AGENT_NAME] = prompt_template
-        ground_truth[AGENT_NAME] = is_malicious
-        print(f"[RESEARCHER A] Replaced with a fresh agent ({label})")
+        prompts, ground_truth = spawn_agent(
+            AGENT_NAME,
+            prompts,
+            ground_truth,
+            replacement=True,
+        )
+        print("[RESEARCHER A] Replaced the flagged agent")
     else:
         prompt_template = prompts.get(
             AGENT_NAME, PROMPT_PAIRS[AGENT_NAME]["healthy"]
         )
 
+    prompt_template = prompts[AGENT_NAME]
     print(f"\n[RESEARCHER A] Analyzing relevance... "
           f"(attempt {attempts[AGENT_NAME]})")
 

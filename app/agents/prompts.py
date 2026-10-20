@@ -1,6 +1,11 @@
 """Healthy and malicious prompt pairs for each agent."""
 
+import os
 import random
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 RESEARCHER_A_HEALTHY = """
 You are Researcher A in a multi-agent news analysis system.
@@ -122,7 +127,11 @@ PROMPT_PAIRS = {
     },
 }
 
-MALICIOUS_RATE = 0.3   # chance a spawned agent is malicious
+SIMULATE_MALICIOUS_AGENTS = (
+    os.getenv("SIMULATE_MALICIOUS_AGENTS", "false").lower()
+    in {"1", "true", "yes", "on"}
+)
+MALICIOUS_RATE = 0.3 if SIMULATE_MALICIOUS_AGENTS else 0.0
 SUBTLE_RATE = 0.5      # given malicious, chance it is the subtle variant
 
 

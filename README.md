@@ -68,15 +68,20 @@ Create a `.env` file in the project root:
 
 ```env
 GNEWS_API_KEY=your_gnews_api_key
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-3.6-flash
+GOOGLE_AI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=your_primary_model
+GEMINI_FALLBACK_MODEL=your_fallback_model
+SIMULATE_MALICIOUS_AGENTS=false
 ```
 
 Notes:
 
 - `GNEWS_API_KEY` is used by `app/utils/news_api.py`
-- `GEMINI_API_KEY` is used by Gemini-based agents
+- `GOOGLE_AI_API_KEY` is used by Gemini-based agents
 - `GEMINI_MODEL` is optional but useful if you want to override the model explicitly
+- `GEMINI_FALLBACK_MODEL` is used after a rate-limit response when configured
+- `SIMULATE_MALICIOUS_AGENTS` defaults to `false`. Set it to `true` only when
+  testing the trust and replacement workflow.
 
 ## Install dependencies
 
